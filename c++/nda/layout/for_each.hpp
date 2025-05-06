@@ -51,12 +51,46 @@ namespace nda {
       }
     }
 
+    template <typename T>
+    consteval int detect_simd_lanes() noexcept {
+#if defined(__AVX512F__)
+      constexpr int simd_bytes = 64;
+#elif defined(__AVX2__) || defined(__AVX__)
+      constexpr int simd_bytes = 32;
+#elif defined(__SSE2__) || defined(__ARM_NEON)
+      constexpr int simd_bytes = 16;
+#else
+      constexpr int simd_bytes = sizeof(T); // scalar fallback
+#endif
+      return simd_bytes / sizeof(T);
+    }
+
     // Apply a callable object recursively to all possible index values of a given shape.
     template <int I, uint64_t StaticExtents, uint64_t StrideOrder, typename F, size_t R, std::integral Int = long>
     FORCEINLINE void for_each_static_impl(std::array<Int, R> const &shape, std::array<long, R> &idxs, F &f) {
-      if constexpr (I == R) {
-        // end of recursion
-        std::apply(f, idxs);
+      if constexpr (I == R - 1) {
+        static constexpr auto J          = index_from_stride_order<R>(StrideOrder, I);
+        using T                          = std::remove_cvref_t<decltype(idxs[0])>;
+        static constexpr auto simd_lanes = detect_simd_lanes<T>();
+        const auto imax                  = get_extent<J, R, StaticExtents>(shape);
+        const auto isimd                 = imax & -simd_lanes; // SIMD lanes aligned size
+
+        auto i = 0;
+        for (; i < isimd; i += simd_lanes) {
+          // Temporarily update idxs[J] per lane
+          [&]<size_t... Is>(std::index_sequence<Is...>) constexpr noexcept {
+            ((idxs[J] = i + Is, std::apply(f, idxs)), ...);
+          }(std::make_index_sequence<simd_lanes>{});
+        }
+
+        // Scalar tail
+        idxs[J] = i;
+        for (; i < imax; ++i) {
+          std::apply(f, idxs);
+          ++idxs[J];
+        }
+        idxs[J] = 0;
+
       } else {
         // get the dimension over which to iterate and its extent
         static constexpr int J = index_from_stride_order<R>(StrideOrder, I);
