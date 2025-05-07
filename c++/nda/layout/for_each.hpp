@@ -65,12 +65,13 @@ namespace nda {
       return simd_bytes / sizeof(T);
     }
 
+
     // Apply a callable object recursively to all possible index values of a given shape.
     template <int I, uint64_t StaticExtents, uint64_t StrideOrder, typename F, size_t R, std::integral Int = long>
     FORCEINLINE void for_each_static_impl(std::array<Int, R> const &shape, std::array<long, R> &idxs, F &f) {
       if constexpr (I == R - 1) {
         static constexpr auto J          = index_from_stride_order<R>(StrideOrder, I);
-        using T                          = std::remove_cvref_t<decltype(idxs[0])>;
+        using T                          = float;
         static constexpr auto simd_lanes = detect_simd_lanes<T>();
         const auto imax                  = get_extent<J, R, StaticExtents>(shape);
         const auto isimd                 = imax & -simd_lanes; // SIMD lanes aligned size
