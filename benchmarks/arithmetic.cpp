@@ -8,7 +8,7 @@ static void lazy_expr(benchmark::State &state) {
   matrix<double> B = 1 + rand<double>(N, N);
   matrix<double> C = 1 + rand<double>(N, N);
   matrix<double> D = 1 + rand<double>(N, N);
-  matrix<double> E = 1 + zeros<double>(N, N);
+  matrix<double> E(N, N);
   benchmark::DoNotOptimize(A.data());
   benchmark::DoNotOptimize(B.data());
   benchmark::DoNotOptimize(C.data());

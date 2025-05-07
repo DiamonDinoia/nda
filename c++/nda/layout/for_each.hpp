@@ -65,37 +65,28 @@ namespace nda {
       return simd_bytes / sizeof(T);
     }
 
-
     // Apply a callable object recursively to all possible index values of a given shape.
     template <int I, uint64_t StaticExtents, uint64_t StrideOrder, typename F, size_t R, std::integral Int = long>
-    FORCEINLINE void for_each_static_impl(std::array<Int, R> const &shape, std::array<long, R> &idxs, F &f) {
+    FORCEINLINE void for_each_static_impl(std::array<Int, R> const &shape, std::array<long, R> &idxs, const F &f) {
+      static constexpr auto J          = index_from_stride_order<R>(StrideOrder, I);
+      const long imax        = get_extent<J, R, StaticExtents>(shape);
       if constexpr (I == R - 1) {
-        static constexpr auto J          = index_from_stride_order<R>(StrideOrder, I);
         using T                          = float;
         static constexpr auto simd_lanes = detect_simd_lanes<T>();
-        const auto imax                  = get_extent<J, R, StaticExtents>(shape);
-        const auto isimd                 = imax & -simd_lanes; // SIMD lanes aligned size
+        const auto isimd                 = imax & (-simd_lanes); // SIMD lanes aligned size
 
-        auto i = 0;
-        for (; i < isimd; i += simd_lanes) {
-          // Temporarily update idxs[J] per lane
-          [&]<size_t... Is>(std::index_sequence<Is...>) constexpr noexcept {
-            ((idxs[J] = i + Is, std::apply(f, idxs)), ...);
-          }(std::make_index_sequence<simd_lanes>{});
+        while (idxs[J] < isimd) [[likely]] {
+#pragma GCC ivdep unroll(simd_lanes)
+          for (uint8_t _ = 0; _ < simd_lanes; ++_) {
+            std::apply(f, idxs);
+            ++idxs[J];
+          }
         }
-
         // Scalar tail
-        idxs[J] = i;
-        for (; i < imax; ++i) {
-          std::apply(f, idxs);
-          ++idxs[J];
-        }
+        for (; idxs[J] < imax; ++idxs[J]) { std::apply(f, idxs); }
         idxs[J] = 0;
-
       } else {
         // get the dimension over which to iterate and its extent
-        static constexpr int J = index_from_stride_order<R>(StrideOrder, I);
-        const long imax        = get_extent<J, R, StaticExtents>(shape);
 
         // loop over all indices of the current dimension
         for (long i = 0; i < imax; ++i) {
