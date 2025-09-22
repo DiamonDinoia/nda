@@ -61,11 +61,12 @@ namespace nda::tensor::nda_tblis {
   template <class ValueType>
   struct scalar : ::tblis::tblis_scalar {
     using value_type = ValueType;
-    scalar() { init_scalar<std::decay_t<ValueType>>(this, 0); }
-    scalar(ValueType v) { init_scalar<std::decay_t<ValueType>>(this, v); }
+
+    scalar() { init_scalar<std::decay_t<ValueType>>(this, ValueType{}); }
+    explicit scalar(ValueType v) { init_scalar<std::decay_t<ValueType>>(this, v); }
     scalar(scalar const &) = delete;
     scalar(scalar &&other) { init_scalar<std::decay_t<ValueType>>(this, ValueType(other.value())); }
-    ValueType value() const { return ::tblis::tblis_scalar::get<ValueType>(); }
+    ValueType value() const { return ::tblis::tblis_scalar::template get<ValueType>(); }
   };
 
   template <class ValueType, int Rank>
@@ -86,8 +87,9 @@ namespace nda::tensor::nda_tblis {
     }
     tensor(tensor const &) = delete;
     tensor(tensor &&other) : lens_{other.lens_}, strides_{other.strides_} {
-      init_tensor_scaled<std::decay_t<ValueType>>(this, ValueType(other.scalar()), rank, lens_.data(),
-                                                  const_cast<std::decay_t<ValueType> *>(other.data()), strides_.data());
+      init_tensor_scaled<std::decay_t<ValueType>>(
+         this, ValueType(other.alpha<ValueType>()), rank, lens_.data(),
+         const_cast<std::decay_t<ValueType> *>(other.data()), strides_.data());
     }
     ValueType *data() const { return static_cast<ValueType *>(::tblis::tblis_tensor::data); }
     //  ValueType scalar() const{return ::tblis::tblis_tensor::scalar.get<ValueType>();}
