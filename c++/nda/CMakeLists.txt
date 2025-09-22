@@ -12,13 +12,15 @@ add_library(${PROJECT_NAME}::${PROJECT_NAME}_c ALIAS ${PROJECT_NAME}_c)
 target_link_libraries(${PROJECT_NAME}_c PRIVATE $<BUILD_INTERFACE:${PROJECT_NAME}_warnings>)
 
 # Configure target and compilation
-target_compile_features(${PROJECT_NAME}_c PUBLIC cxx_std_23)
+target_compile_features(${PROJECT_NAME}_c PUBLIC cxx_std_20)
 set_target_properties(${PROJECT_NAME}_c PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
 )
 target_include_directories(${PROJECT_NAME}_c PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c++>)
 target_include_directories(${PROJECT_NAME}_c SYSTEM INTERFACE $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
+target_link_directories(${PROJECT_NAME}_c PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c++>)
+target_link_directories(${PROJECT_NAME}_c INTERFACE $<INSTALL_INTERFACE:${CMAKE_INSTALL_FULL_LIBDIR}>)
 target_compile_options(${PROJECT_NAME}_c PUBLIC $<$<CXX_COMPILER_ID:IntelLLVM>:-fno-finite-math-only>)
 target_compile_definitions(${PROJECT_NAME}_c PUBLIC
 				NDA_GIT_HASH=${PROJECT_GIT_HASH}
@@ -35,15 +37,29 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/version.hpp DESTINATION include/${PROJ
 
 # ========= Additional Depdencies ==========
 
+# Link against Itertools
+target_link_libraries(${PROJECT_NAME}_c PUBLIC itertools::itertools_c)
+
 # Link against HDF5 C++ Interface
-target_link_libraries(${PROJECT_NAME}_c PUBLIC h5::h5_c)
+if(HDF5Support)
+  target_link_libraries(${PROJECT_NAME}_c PUBLIC h5::h5_c)
+  target_compile_definitions(${PROJECT_NAME}_c PUBLIC NDA_HAVE_H5)
+endif()
 
 # Link against MPI C++ Interface
-target_link_libraries(${PROJECT_NAME}_c PUBLIC mpi::mpi_c)
+if(MPISupport)
+  target_link_libraries(${PROJECT_NAME}_c PUBLIC mpi::mpi_c)
+  target_compile_definitions(${PROJECT_NAME}_c PUBLIC NDA_HAVE_MPI)
+endif()
 
 # OpenMP
-find_package(OpenMP REQUIRED COMPONENTS CXX)
-target_link_libraries(${PROJECT_NAME}_c PUBLIC OpenMP::OpenMP_CXX)
+if(OpenMPSupport)
+  message(STATUS "-------- OpenMP detection -------------")
+  find_package(OpenMP REQUIRED COMPONENTS CXX)
+  message(STATUS "Detected OpenMP Version: ${OpenMP_CXX_VERSION}")
+  target_link_libraries(${PROJECT_NAME}_c PUBLIC OpenMP::OpenMP_CXX)
+  target_compile_definitions(${PROJECT_NAME}_c PUBLIC NDA_HAVE_OPENMP)
+endif ()
 
 # ========= Blas / Lapack ==========
 
